@@ -6,26 +6,25 @@ import (
 	"sync"
 
 	"github.com/dmisol/animportal/anim"
-	"github.com/dmisol/animportal/defs"
 	"github.com/dmisol/animportal/relay"
 	lksdk "github.com/livekit/server-sdk-go"
 	webrtc "github.com/pion/webrtc/v3"
 )
 
-func NewPortal(ctx context.Context, hall defs.LkCtrl, dummy defs.LkCtrl) (p *Portal, err error) {
+func NewPortal(ctx context.Context, hall string, dummy string, name string) (p *Portal, err error) {
 	p = &Portal{
-		Relays:    make(map[string]*relay.Relay),
-		Owner:     dummy.Name,
-		dummyConf: dummy,
+		Relays: make(map[string]*relay.Relay),
+		Owner:  name,
+		room:   dummy,
 	}
 	p.Context, p.CancelFunc = context.WithCancel(ctx)
 
 	// subscribe to hall, set cb to colect participants
-	if p.Hall, err = lksdk.ConnectToRoom(hall.Ws, lksdk.ConnectInfo{
-		APIKey:              hall.Key,
-		APISecret:           hall.Secret,
-		RoomName:            hall.Room,
-		ParticipantIdentity: hall.Name,
+	if p.Hall, err = lksdk.ConnectToRoom(lkWs, lksdk.ConnectInfo{
+		APIKey:              lkKey,
+		APISecret:           lkSecret,
+		RoomName:            hall,
+		ParticipantIdentity: name,
 	}, &lksdk.RoomCallback{
 		ParticipantCallback: lksdk.ParticipantCallback{
 			OnTrackSubscribed: p.hallCb,
@@ -40,10 +39,10 @@ func NewPortal(ctx context.Context, hall defs.LkCtrl, dummy defs.LkCtrl) (p *Por
 
 	// subscribe to dummy, forward audio for (processing, hall)
 	// also publish video to dummy as "flexatar", for monitoring
-	if p.Dummy, err = lksdk.ConnectToRoom(p.dummyConf.Ws, lksdk.ConnectInfo{
-		APIKey:              p.dummyConf.Key,
-		APISecret:           p.dummyConf.Secret,
-		RoomName:            p.dummyConf.Room,
+	if p.Dummy, err = lksdk.ConnectToRoom(lkWs, lksdk.ConnectInfo{
+		APIKey:              lkKey,
+		APISecret:           lkSecret,
+		RoomName:            dummy,
 		ParticipantIdentity: "anim",
 	}, &lksdk.RoomCallback{
 		ParticipantCallback: lksdk.ParticipantCallback{
@@ -79,7 +78,7 @@ type Portal struct {
 	context.CancelFunc
 	mu sync.Mutex
 
-	dummyConf defs.LkCtrl
+	room string
 
 	Dummy, Hall *lksdk.Room             // connections for the given user, who is to be replaced with flexatar
 	Relays      map[string]*relay.Relay //*lksdk.Room // connections to Dummy to publish all Halls' publishers
@@ -96,13 +95,11 @@ func (p *Portal) hallCb(remote *webrtc.TrackRemote, publication *lksdk.RemoteTra
 	r, ok := p.Relays[id]
 	if !ok {
 		p.Println("relaying (hall->dummy", id)
-		d := p.dummyConf
-		d.Name = id
 
-		room, err := lksdk.ConnectToRoom(p.dummyConf.Ws, lksdk.ConnectInfo{
-			APIKey:              p.dummyConf.Key,
-			APISecret:           p.dummyConf.Secret,
-			RoomName:            p.dummyConf.Room,
+		room, err := lksdk.ConnectToRoom(lkWs, lksdk.ConnectInfo{
+			APIKey:              lkKey,
+			APISecret:           lkSecret,
+			RoomName:            p.room,
 			ParticipantIdentity: id,
 		}, &lksdk.RoomCallback{
 			ParticipantCallback: lksdk.ParticipantCallback{},

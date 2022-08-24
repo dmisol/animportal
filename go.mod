@@ -4,11 +4,14 @@ go 1.18
 
 require (
 	github.com/livekit/server-sdk-go v0.10.4
+	github.com/pion/interceptor v0.1.11
 	github.com/pion/rtp v1.7.13
 	github.com/pion/webrtc/v3 v3.1.43
+	github.com/valyala/fasthttp v1.39.0
 )
 
 require (
+	github.com/andybalholm/brotli v1.0.4 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bep/debounce v1.2.0 // indirect
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect
@@ -22,6 +25,7 @@ require (
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/jxskiss/base62 v0.0.0-20191017122030-4f11678b909b // indirect
+	github.com/klauspost/compress v1.15.0 // indirect
 	github.com/lithammer/shortuuid/v3 v3.0.7 // indirect
 	github.com/livekit/protocol v0.13.3 // indirect
 	github.com/magefile/mage v1.13.0 // indirect
@@ -29,7 +33,6 @@ require (
 	github.com/pion/datachannel v1.5.2 // indirect
 	github.com/pion/dtls/v2 v2.1.5 // indirect
 	github.com/pion/ice/v2 v2.2.6 // indirect
-	github.com/pion/interceptor v0.1.11 // indirect
 	github.com/pion/logging v0.2.2 // indirect
 	github.com/pion/mdns v0.0.5 // indirect
 	github.com/pion/randutil v0.1.0 // indirect
@@ -47,6 +50,7 @@ require (
 	github.com/prometheus/procfs v0.6.0 // indirect
 	github.com/thoas/go-funk v0.9.0 // indirect
 	github.com/twitchtv/twirp v8.1.0+incompatible // indirect
+	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	golang.org/x/crypto v0.0.0-20220516162934-403b01795ae8 // indirect
 	golang.org/x/net v0.0.0-20220630215102-69896b714898 // indirect
