@@ -3,11 +3,16 @@ module github.com/dmisol/animportal
 go 1.18
 
 require (
+	github.com/gen2brain/x264-go v0.2.1
+	github.com/google/uuid v1.3.0
+	github.com/livekit/protocol v0.13.3
 	github.com/livekit/server-sdk-go v0.10.4
 	github.com/pion/interceptor v0.1.11
 	github.com/pion/rtp v1.7.13
 	github.com/pion/webrtc/v3 v3.1.43
 	github.com/valyala/fasthttp v1.39.0
+	github.com/zaf/resample v0.0.0-20220109201959-aca35f45e6fa
+	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (
@@ -18,16 +23,16 @@ require (
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/eapache/channels v1.1.0 // indirect
 	github.com/eapache/queue v1.1.0 // indirect
+	github.com/gen2brain/x264-go/x264c v0.0.0-20220830082553-c054a20cbf93 // indirect
+	github.com/gen2brain/x264-go/yuv v0.0.0-20220830082553-c054a20cbf93 // indirect
 	github.com/go-logr/logr v1.2.2 // indirect
 	github.com/go-logr/stdr v1.0.0 // indirect
 	github.com/go-redis/redis/v8 v8.11.3 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
-	github.com/google/uuid v1.3.0 // indirect
 	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/jxskiss/base62 v0.0.0-20191017122030-4f11678b909b // indirect
 	github.com/klauspost/compress v1.15.0 // indirect
 	github.com/lithammer/shortuuid/v3 v3.0.7 // indirect
-	github.com/livekit/protocol v0.13.3 // indirect
 	github.com/magefile/mage v1.13.0 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
 	github.com/pion/datachannel v1.5.2 // indirect

@@ -14,7 +14,7 @@ const (
 // encode video
 // feed it both to hall (as ID) and to dummy (as "flexatar")
 
-type Video struct {
+type video struct {
 	Ms *int64
 
 	dummy, hall *lksdk.Room
@@ -24,6 +24,6 @@ type Video struct {
 	Compute func()
 }
 
-func (v *Video) Run() (err error) {
+func (v *video) Run() (err error) {
 	return
 }

@@ -10,33 +10,34 @@ import (
 	"github.com/google/uuid"
 	"github.com/livekit/protocol/auth"
 	"github.com/valyala/fasthttp"
+	"gopkg.in/yaml.v2"
 )
 
 var (
-	lkKey, lkSecret, lkWs string
-	lkDefaultHall         string
-	engineAddress         string
-
-	initialJson defs.Init
+	conf *defs.PortalConf
 )
 
 const (
 	lifetime = 2 * time.Hour
 )
 
-func Init(key, secret, ws, hall, engineAddress string) (err error) {
-	lkKey = key
-	lkSecret = secret
-	lkWs = ws
-	lkDefaultHall = hall
-	engineAddress = engineAddress
-
+func Init(name string) (err error) {
 	var cont []byte
+	cont, err = ioutil.ReadFile(name)
+	if err != nil {
+		return
+	}
+
+	conf = &defs.PortalConf{}
+	if err = yaml.Unmarshal(cont, conf); err != nil {
+		return
+	}
+
 	cont, err = ioutil.ReadFile("./config.json")
 	if err != nil {
 		return err
 	}
-	err = json.Unmarshal(cont, &initialJson)
+	err = json.Unmarshal(cont, &defs.InitialJson)
 	return
 }
 
@@ -80,7 +81,7 @@ func signToken(lifetime time.Duration, uid, name, room string) (token string, er
 	canPublish := true
 	canSubscribe := true
 
-	at := auth.NewAccessToken(lkKey, lkSecret)
+	at := auth.NewAccessToken(conf.Key, conf.Secret)
 	grant := &auth.VideoGrant{
 		RoomJoin:     true,
 		Room:         room,

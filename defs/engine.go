@@ -4,6 +4,10 @@ const (
 	Port = 50000
 )
 
+var (
+	InitialJson *Init
+)
+
 type Init struct {
 	Dir  string `json:"dir"`
 	Ftar string `json:"ftar"`

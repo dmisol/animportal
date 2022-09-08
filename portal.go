@@ -3,12 +3,18 @@ package animportal
 import (
 	"context"
 	"log"
+	"path"
 	"sync"
+	"time"
 
 	"github.com/dmisol/animportal/anim"
 	"github.com/dmisol/animportal/relay"
 	lksdk "github.com/livekit/server-sdk-go"
 	webrtc "github.com/pion/webrtc/v3"
+)
+
+const (
+	rtcTimeout = 2 * time.Hour
 )
 
 func NewPortal(ctx context.Context, hall string, dummy string, name string) (p *Portal, err error) {
@@ -20,9 +26,9 @@ func NewPortal(ctx context.Context, hall string, dummy string, name string) (p *
 	p.Context, p.CancelFunc = context.WithCancel(ctx)
 
 	// subscribe to hall, set cb to colect participants
-	if p.Hall, err = lksdk.ConnectToRoom(lkWs, lksdk.ConnectInfo{
-		APIKey:              lkKey,
-		APISecret:           lkSecret,
+	if p.Hall, err = lksdk.ConnectToRoom(conf.Ws, lksdk.ConnectInfo{
+		APIKey:              conf.Key,
+		APISecret:           conf.Secret,
 		RoomName:            hall,
 		ParticipantIdentity: name,
 	}, &lksdk.RoomCallback{
@@ -33,26 +39,34 @@ func NewPortal(ctx context.Context, hall string, dummy string, name string) (p *
 		panic(err)
 	}
 
-	if p.Engine, err = anim.NewEngine(p.Context, p.Hall); err != nil {
+	if p.Engine, err = anim.NewEngine(p.Context, conf.AnimAddr, path.Join(conf.Ram, dummy), p.Hall); err != nil {
 		return
 	}
 
 	// subscribe to dummy, forward audio for (processing, hall)
 	// also publish video to dummy as "flexatar", for monitoring
-	if p.Dummy, err = lksdk.ConnectToRoom(lkWs, lksdk.ConnectInfo{
-		APIKey:              lkKey,
-		APISecret:           lkSecret,
+	if p.Dummy, err = lksdk.ConnectToRoom(conf.Ws, lksdk.ConnectInfo{
+		APIKey:              conf.Key,
+		APISecret:           conf.Secret,
 		RoomName:            dummy,
 		ParticipantIdentity: "anim",
 	}, &lksdk.RoomCallback{
 		ParticipantCallback: lksdk.ParticipantCallback{
-			OnTrackSubscribed: p.dummyCb,
+			OnTrackSubscribed:  p.dummyCb,
+			OnTrackUnpublished: p.stop,
 		},
 	}, func(cp *lksdk.ConnectParams) { cp.AutoSubscribe = false }); err != nil {
 		panic(err)
 	}
 
 	return
+}
+
+func (p *Portal) stop(publication *lksdk.RemoteTrackPublication, rp *lksdk.RemoteParticipant) {
+	if rp.Identity() == p.Owner {
+		p.Println("owner left, closing")
+		p.CancelFunc()
+	}
 }
 
 func (p *Portal) Close() {
@@ -96,9 +110,9 @@ func (p *Portal) hallCb(remote *webrtc.TrackRemote, publication *lksdk.RemoteTra
 	if !ok {
 		p.Println("relaying (hall->dummy", id)
 
-		room, err := lksdk.ConnectToRoom(lkWs, lksdk.ConnectInfo{
-			APIKey:              lkKey,
-			APISecret:           lkSecret,
+		room, err := lksdk.ConnectToRoom(conf.Ws, lksdk.ConnectInfo{
+			APIKey:              conf.Key,
+			APISecret:           conf.Secret,
 			RoomName:            p.room,
 			ParticipantIdentity: id,
 		}, &lksdk.RoomCallback{

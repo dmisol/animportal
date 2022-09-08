@@ -44,6 +44,14 @@ github.com/envoyproxy/protoc-gen-validate v0.1.0/go.mod h1:iSmxcyjqTsJpI2R4NaDN7
 github.com/fsnotify/fsnotify v1.4.7/go.mod h1:jwhsz4b93w/PPRr/qN1Yymfu8t87LnFCMoQvtojpjFo=
 github.com/fsnotify/fsnotify v1.4.9 h1:hsms1Qyu0jgnwNXIxa+/V/PDsU6CfLf6CNO8H7IWoS4=
 github.com/fsnotify/fsnotify v1.4.9/go.mod h1:znqG4EE+3YCdAaPaxE2ZRY/06pZUdp0tY4IgpuI1SZQ=
+github.com/gen2brain/x264-go v0.2.1 h1:5KV+GZk/YH8oUVvFijfJ3JoSIxexkSv/5ALp4v6NUq8=
+github.com/gen2brain/x264-go v0.2.1/go.mod h1:F6mwU9FyzrUbWE0f9lWdTPHBEDt/ugle+H61peryCZQ=
+github.com/gen2brain/x264-go/x264c v0.0.0-20220828141959-ddbf4cbb9814/go.mod h1:lshP4xmJNPCHscewcvsemVs62q8J8F0mh+FYBAfVG60=
+github.com/gen2brain/x264-go/x264c v0.0.0-20220830082553-c054a20cbf93 h1:c7CTWmb8LcKawcKgTAQccBeeM0eMfAQm5URh/N7xX7E=
+github.com/gen2brain/x264-go/x264c v0.0.0-20220830082553-c054a20cbf93/go.mod h1:lshP4xmJNPCHscewcvsemVs62q8J8F0mh+FYBAfVG60=
+github.com/gen2brain/x264-go/yuv v0.0.0-20220622130850-9f6285ee8073/go.mod h1:xGOE/2fXjxu/ZONrm0EPqKHj/XDc13al1o48I3FQfHA=
+github.com/gen2brain/x264-go/yuv v0.0.0-20220830082553-c054a20cbf93 h1:2FxQ2177RdThXftZ8n2lUUuQC7S8aW94MDZAwt8+slM=
+github.com/gen2brain/x264-go/yuv v0.0.0-20220830082553-c054a20cbf93/go.mod h1:xGOE/2fXjxu/ZONrm0EPqKHj/XDc13al1o48I3FQfHA=
 github.com/ghodss/yaml v1.0.0/go.mod h1:4dBDuWmgqj2HViK6kFavaiC9ZROes6MMH2rRYeMEF04=
 github.com/go-kit/kit v0.8.0/go.mod h1:xBxKIO96dXMWWy0MnWVtmwkA9/13aqxPnvrjFYMA2as=
 github.com/go-kit/kit v0.9.0/go.mod h1:xBxKIO96dXMWWy0MnWVtmwkA9/13aqxPnvrjFYMA2as=
@@ -239,6 +247,8 @@ github.com/valyala/fasthttp v1.39.0/go.mod h1:t/G+3rLek+CyY9bnIE+YlMRddxVAAGjhxn
 github.com/valyala/tcplisten v1.0.0/go.mod h1:T0xQ8SeCZGxckz9qRXTfG43PvQ/mcWh7FwZEA7Ioqkc=
 github.com/yuin/goldmark v1.2.1/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.3.5/go.mod h1:mwnBkeHKe2W/ZEtQ+71ViKU8L12m81fl3OWwC1Zlc8k=
+github.com/zaf/resample v0.0.0-20220109201959-aca35f45e6fa h1:v/fzTnwLcf9fwytywqtjYAk7E4NU0/q1swEstio9X4E=
+github.com/zaf/resample v0.0.0-20220109201959-aca35f45e6fa/go.mod h1:iVeG5MgEEysaBXqj4m+3Wj9JGxyWb/sxBXNsMynLCd4=
 go.opentelemetry.io/proto/otlp v0.7.0/go.mod h1:PqfVotwruBrMGOCsRd/89rSnXhoiJIqeYNgFYFoEGnI=
 go.uber.org/atomic v1.7.0/go.mod h1:fEN4uk6kAWBTFdckzkM89CLk9XfWZrxpCo0nPH17wJc=
 go.uber.org/atomic v1.9.0 h1:ECmE8Bn/WFTYwEW/bpKD3M8VtR/zQVbavAoalC1PYyE=
