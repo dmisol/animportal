@@ -2,6 +2,9 @@ package anim
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"image"
 	"io"
 	"log"
 	"net"
@@ -36,10 +39,10 @@ func NewEngine(ctx context.Context, addr string, ram string, room *lksdk.Room) (
 		t0:   time.Now(),
 	}
 	e.Context, _ = context.WithCancel(ctx)
-	e.animation = newAnimation(e.Context, addr, path.Join(ram, "pcm"), e.onEncodedVideo)
-	e.bridge = &bridge{}
+	if e.animation, err = newAnimation(e.Context, addr, path.Join(ram, "pcm"), e.onEncodedVideo); err != nil {
+		return
+	}
 
-	e.enc, err = x264.NewEncoder(e.bridge, opts)
 	return
 }
 
@@ -47,8 +50,6 @@ type Engine struct {
 	mu           sync.Mutex
 	audio, video io.ReadCloser
 	*animation
-	enc *x264.Encoder
-	*bridge
 
 	context.Context
 	*lksdk.Room
@@ -71,16 +72,14 @@ func (e *Engine) OnAuioTrack(remote *webrtc.TrackRemote) {
 	*/
 	e.Println("start sending audio for animation")
 
-	e.audio = NewAudioProc(remote, e.animation)
-	e.video = NewVideo(e.animation)
+	e.audio = newAudioProc(remote, e.animation)
 
 	go func() {
 		<-e.Context.Done()
 		e.Println("stop sending audio for animation")
 
 		e.audio.Close()
-		e.video.Close()
-		e.enc.Close()
+		e.animation.Close()
 	}()
 
 }
@@ -95,17 +94,37 @@ func (e *Engine) onEncodedVideo() {
 
 	}
 	e.Relay.AddReadCloser(e.audio, webrtc.MimeTypeOpus)
-	e.Relay.AddReadCloser(e.bridge, webrtc.MimeTypeH264)
+	e.Relay.AddReadCloser(e.animation.bridge, webrtc.MimeTypeH264)
 }
 
-func newAnimation(ctx context.Context, addr string, dir string, f func()) (p *animation) {
-	var err error
+func (e *Engine) Println(i ...interface{}) {
+	log.Println("anim.engine", i)
+}
+
+func newAnimation(ctx context.Context, addr string, dir string, f func()) (p *animation, err error) {
 	// mkdir in ramfs
 	os.MkdirAll(dir, 0755)
 
+	// create structure
+	p = &animation{dir: dir}
+	p.bridge = &bridge{}
+	if p.enc, err = x264.NewEncoder(p.bridge, opts); err != nil {
+		return
+	}
+
 	// connect to port
-	p.conn, err = net.Dial("tcp", addr)
+	if p.conn, err = net.Dial("tcp", addr); err != nil {
+		return
+	}
+
 	// send initial json
+	var b []byte
+	if b, err = json.Marshal(defs.InitialJson); err != nil {
+		return
+	}
+	if _, err = p.conn.Write(b); err != nil {
+		return
+	}
 
 	// start reading images
 	go func() {
@@ -131,23 +150,48 @@ func newAnimation(ctx context.Context, addr string, dir string, f func()) (p *an
 			}
 		}
 	}()
-}
-
-func (e *Engine) Println(i ...interface{}) {
-	log.Println("anim.engine", i)
+	return
 }
 
 type animation struct {
 	conn net.Conn
 	dir  string
+
+	index int64
+
+	enc *x264.Encoder
+	*bridge
 }
 
 func (p *animation) procImage(name string) (err error) {
+	var r *os.File
+	if r, err = os.Open(name); err != nil {
+		return
+	}
 
+	var img image.Image
+	if img, _, err = image.Decode(r); err != nil {
+		return
+	}
+	// conv data to h264 and Write() to *bridge
+	err = p.enc.Encode(img)
+	return
 }
 
 // Write() will be called when PCM portion is ready to be sent for animation computing
-func (p *animation) Write(b []byte) (i int, err error) {
+func (p *animation) Write(pcm []byte) (i int, err error) {
+	// create file
+	name := fmt.Sprintf("%s/%d.pcm", p.dir, atomic.AddInt64(&p.index, 1))
+	err = os.WriteFile(name, pcm, 0666)
+	i = len(pcm)
+
+	// send name to socket
+	_, err = p.conn.Write([]byte(name))
+	return
+}
+
+func (p *animation) Close() (err error) {
+	p.enc.Close()
 	return
 }
 
@@ -161,12 +205,40 @@ type bridge struct {
 	// todo: convert to RFC 6184 ?
 	mu   sync.Mutex
 	data [][]byte
+
+	remained []byte
 }
 
 func (b *bridge) Write(p []byte) (i int, err error) {
+	i = len(p)
+
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	b.data = append(b.data, p)
+	return
 }
 
 func (b *bridge) Read(p []byte) (i int, err error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if len(b.remained) > 0 {
+		i = copy(p, b.remained)
+		b.remained = b.remained[:i]
+		return
+	}
+
+	if len(b.data) == 0 {
+		return
+	}
+
+	b.remained = b.data[0]
+	b.data = b.data[1:]
+
+	i = copy(p, b.remained)
+	b.remained = b.remained[:i]
+	return
 }
 
-func (b *bridge) Close() (err error) {}
+func (b *bridge) Close() (err error) { return }

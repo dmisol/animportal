@@ -96,7 +96,7 @@ type AudioProc struct {
 	stop      chan bool
 }
 
-func NewAudioProc(remote *webrtc.TrackRemote, anim io.Writer) (a *AudioProc) {
+func newAudioProc(remote *webrtc.TrackRemote, anim io.Writer) (a *AudioProc) {
 	a = &AudioProc{
 		stop: make(chan bool),
 		conv: newConv(anim),
