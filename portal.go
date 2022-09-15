@@ -2,149 +2,99 @@ package animportal
 
 import (
 	"context"
-	"log"
-	"path"
-	"sync"
+	"encoding/json"
+	"io/ioutil"
 	"time"
 
-	"github.com/dmisol/animportal/anim"
-	"github.com/dmisol/animportal/relay"
-	lksdk "github.com/livekit/server-sdk-go"
-	webrtc "github.com/pion/webrtc/v3"
+	"github.com/dmisol/animportal/defs"
+	"github.com/google/uuid"
+	"github.com/livekit/protocol/auth"
+	"github.com/valyala/fasthttp"
+	"gopkg.in/yaml.v2"
 )
 
 const (
-	rtcTimeout = 2 * time.Hour
+	lifetime = 2 * time.Hour
 )
 
-func NewPortal(ctx context.Context, hall string, dummy string, name string) (p *Portal, err error) {
-	p = &Portal{
-		Relays: make(map[string]*relay.Relay),
-		Owner:  name,
-		room:   dummy,
-	}
-	p.Context, p.CancelFunc = context.WithCancel(ctx)
+type AnimationPortal struct {
+	*defs.PortalConf
+}
 
-	// subscribe to hall, set cb to colect participants
-	if p.Hall, err = lksdk.ConnectToRoom(conf.Ws, lksdk.ConnectInfo{
-		APIKey:              conf.Key,
-		APISecret:           conf.Secret,
-		RoomName:            hall,
-		ParticipantIdentity: name,
-	}, &lksdk.RoomCallback{
-		ParticipantCallback: lksdk.ParticipantCallback{
-			OnTrackSubscribed: p.hallCb,
-		},
-	}, func(cp *lksdk.ConnectParams) { cp.AutoSubscribe = false }); err != nil {
-		panic(err)
-	}
-
-	if p.Engine, err = anim.NewEngine(p.Context, conf.AnimAddr, path.Join(conf.Ram, dummy), p.Hall); err != nil {
+func (ap *AnimationPortal) Init(name string) (err error) {
+	var cont []byte
+	cont, err = ioutil.ReadFile(name)
+	if err != nil {
 		return
 	}
 
-	// subscribe to dummy, forward audio for (processing, hall)
-	// also publish video to dummy as "flexatar", for monitoring
-	if p.Dummy, err = lksdk.ConnectToRoom(conf.Ws, lksdk.ConnectInfo{
-		APIKey:              conf.Key,
-		APISecret:           conf.Secret,
-		RoomName:            dummy,
-		ParticipantIdentity: "anim",
-	}, &lksdk.RoomCallback{
-		ParticipantCallback: lksdk.ParticipantCallback{
-			OnTrackSubscribed:  p.dummyCb,
-			OnTrackUnpublished: p.stop,
-		},
-	}, func(cp *lksdk.ConnectParams) { cp.AutoSubscribe = false }); err != nil {
-		panic(err)
+	ap.PortalConf = &defs.PortalConf{}
+	if err = yaml.Unmarshal(cont, ap.PortalConf); err != nil {
+		return
 	}
 
+	cont, err = ioutil.ReadFile("./config.json")
+	if err != nil {
+		return err
+	}
+	err = json.Unmarshal(cont, &defs.InitialJson)
 	return
 }
 
-func (p *Portal) stop(publication *lksdk.RemoteTrackPublication, rp *lksdk.RemoteParticipant) {
-	if rp.Identity() == p.Owner {
-		p.Println("owner left, closing")
-		p.CancelFunc()
+// /animate?name=xxx - hall's name is ft
+// /animate?name=xxx&hall=yyy
+func (ap *AnimationPortal) Handler(r *fasthttp.RequestCtx) {
+	name := string(r.FormValue("name"))
+	hall := string(r.FormValue("hall"))
+	dummy := uuid.NewString()
+
+	if name == "" {
+		r.Error("no name", fasthttp.StatusBadRequest)
+		return
 	}
-}
-
-func (p *Portal) Close() {
-
-	if p.Dummy != nil {
-		p.Dummy.Disconnect()
-	}
-	if p.Hall != nil {
-		p.Hall.Disconnect()
+	if hall == "" {
+		hall = "ft"
 	}
 
-	p.CancelFunc()
-}
+	t, err := ap.signToken(lifetime, name, "", dummy)
+	if err != nil {
+		r.Error("can't make token", fasthttp.StatusInternalServerError)
+		return
+	}
 
-func (p *Portal) Println(i ...interface{}) {
-	log.Println("portal", i)
-}
-
-type Portal struct {
-	*anim.Engine
-
-	context.Context
-	context.CancelFunc
-	mu sync.Mutex
-
-	room string
-
-	Dummy, Hall *lksdk.Room             // connections for the given user, who is to be replaced with flexatar
-	Relays      map[string]*relay.Relay //*lksdk.Room // connections to Dummy to publish all Halls' publishers
-	Owner       string
-}
-
-// to get new publoshers in Hall to fill []*Relays
-func (p *Portal) hallCb(remote *webrtc.TrackRemote, publication *lksdk.RemoteTrackPublication, rp *lksdk.RemoteParticipant) {
-	id := rp.Identity()
-
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	r, ok := p.Relays[id]
-	if !ok {
-		p.Println("relaying (hall->dummy", id)
-
-		room, err := lksdk.ConnectToRoom(conf.Ws, lksdk.ConnectInfo{
-			APIKey:              conf.Key,
-			APISecret:           conf.Secret,
-			RoomName:            p.room,
-			ParticipantIdentity: id,
-		}, &lksdk.RoomCallback{
-			ParticipantCallback: lksdk.ParticipantCallback{},
-		})
+	ctx, _ := context.WithTimeout(context.Background(), lifetime)
+	go func() {
+		p, err := ap.newUser(ctx, hall, dummy, name)
 		if err != nil {
-			p.Println("romm error", id, err)
+			r.Error("can't start portal", fasthttp.StatusInternalServerError)
 			return
 		}
+		r.WriteString(t)
 
-		r, _ = relay.NewRelay(p.Context, room)
-		p.Relays[id] = r
-	}
-	if id == p.Owner && remote.Kind() == webrtc.RTPCodecTypeAudio {
-		p.Println("do not publish audio back, ft only - skipping")
-		return
-	}
-	r.AddTrack(remote)
+		<-ctx.Done()
+		p.Println("portal closed")
+	}()
 }
 
-func (p *Portal) dummyCb(remote *webrtc.TrackRemote, publication *lksdk.RemoteTrackPublication, rp *lksdk.RemoteParticipant) {
-	if p.Owner != rp.Identity() {
-		return
-	}
-	if remote.Kind() != webrtc.RTPCodecTypeAudio {
-		return
-	}
-	go p.Engine.OnAuioTrack(remote)
-}
+func (ap *AnimationPortal) signToken(lifetime time.Duration, uid, name, room string) (token string, err error) {
 
-type PattGen interface {
-}
+	canPublish := true
+	canSubscribe := true
 
-type ImgGen interface {
+	at := auth.NewAccessToken(ap.PortalConf.Key, ap.PortalConf.Secret)
+	grant := &auth.VideoGrant{
+		RoomJoin:     true,
+		Room:         room,
+		CanPublish:   &canPublish,
+		CanSubscribe: &canSubscribe,
+	}
+
+	at.AddGrant(grant).SetIdentity(uid)
+	if len(name) > 0 {
+		at.SetName(name)
+	}
+	at.AddGrant(grant).SetValidFor(lifetime)
+
+	token, err = at.ToJWT()
+	return
 }
