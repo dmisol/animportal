@@ -1,7 +1,7 @@
 package anim
 
-// #cgo linux CFLAGS: -I/uc/include/opus
-// #cgo linux LDFLAGS: -L/uc/lib/x86_64-linux-gnu -lopus
+// #cgo linux CFLAGS: -I/usr/include/opus
+// #cgo linux LDFLAGS: -L/usr/lib/x86_64-linux-gnu -lopus
 // #include <opus.h>
 import "C"
 import (
