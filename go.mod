@@ -12,6 +12,7 @@ require (
 	github.com/pion/webrtc/v3 v3.1.43
 	github.com/valyala/fasthttp v1.39.0
 	github.com/zaf/resample v0.0.0-20220109201959-aca35f45e6fa
+	gocv.io/x/gocv v0.31.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 
