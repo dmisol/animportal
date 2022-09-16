@@ -4,13 +4,9 @@ const (
 	Port = 50000
 )
 
-var (
-	InitialJson *Init
-)
-
-type Init struct {
-	Dir  string `json:"dir"`
-	Ftar string `json:"ftar"`
+type InitialJson struct {
+	Dir  string
+	Ftar string
 
 	VR      bool   `json:"vr,omitempty"`
 	HairSeg bool   `json:"hair_seg,omitempty"`

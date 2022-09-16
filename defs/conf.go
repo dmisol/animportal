@@ -9,4 +9,9 @@ type PortalConf struct {
 	Ws     string `yaml:"ws"`
 
 	Hall string `yaml:"hall"`
+
+	DefaultInitJson string `yaml:"initjson"`
+	DefaultFtar     string `yaml:"ftar"`
+
+	InitialJson
 }

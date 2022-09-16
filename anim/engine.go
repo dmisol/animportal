@@ -21,25 +21,13 @@ import (
 	"github.com/pion/webrtc/v3"
 )
 
-var (
-	opts = &x264.Options{
-		Width:     defs.InitialJson.W,
-		Height:    defs.InitialJson.H,
-		FrameRate: defs.InitialJson.FPS,
-		Tune:      "zerolatency",
-		Preset:    "veryfast",
-		Profile:   "baseline",
-		LogLevel:  x264.LogDebug,
-	}
-)
-
-func NewEngine(ctx context.Context, addr string, ram string, room *lksdk.Room) (e *Engine, err error) {
+func NewEngine(ctx context.Context, addr string, ram string, room *lksdk.Room, conf defs.PortalConf) (e *Engine, err error) {
 	e = &Engine{
 		Room: room,
 		t0:   time.Now(),
 	}
 	e.Context, _ = context.WithCancel(ctx)
-	if e.animation, err = newAnimation(e.Context, addr, path.Join(ram, "pcm"), e.onEncodedVideo); err != nil {
+	if e.animation, err = newAnimation(e.Context, addr, path.Join(ram, "pcm"), e.onEncodedVideo, conf.InitialJson); err != nil {
 		return
 	}
 
@@ -47,8 +35,7 @@ func NewEngine(ctx context.Context, addr string, ram string, room *lksdk.Room) (
 }
 
 type Engine struct {
-	mu           sync.Mutex
-	audio, video io.ReadCloser
+	audio io.ReadCloser
 	*animation
 
 	context.Context
@@ -56,7 +43,6 @@ type Engine struct {
 	t0 time.Time
 
 	*relay.Relay
-	dir     string
 	started int32
 }
 
@@ -91,7 +77,8 @@ func (e *Engine) onEncodedVideo() {
 	}
 	var err error
 	if e.Relay, err = relay.NewRelay(e.Context, e.Room); err != nil {
-
+		e.Println("newRelay", err)
+		return
 	}
 	e.Relay.AddReadCloser(e.audio, webrtc.MimeTypeOpus)
 	e.Relay.AddReadCloser(e.animation.bridge, webrtc.MimeTypeH264)
@@ -101,13 +88,22 @@ func (e *Engine) Println(i ...interface{}) {
 	log.Println("anim.engine", i)
 }
 
-func newAnimation(ctx context.Context, addr string, dir string, f func()) (p *animation, err error) {
+func newAnimation(ctx context.Context, addr string, dir string, f func(), conf defs.InitialJson) (p *animation, err error) {
 	// mkdir in ramfs
 	os.MkdirAll(dir, 0755)
 
 	// create structure
 	p = &animation{dir: dir}
 	p.bridge = &bridge{}
+	opts := &x264.Options{
+		Width:     conf.W,
+		Height:    conf.H,
+		FrameRate: conf.FPS,
+		Tune:      "zerolatency",
+		Preset:    "veryfast",
+		Profile:   "baseline",
+		LogLevel:  x264.LogDebug,
+	}
 	if p.enc, err = x264.NewEncoder(p.bridge, opts); err != nil {
 		return
 	}
@@ -119,7 +115,7 @@ func newAnimation(ctx context.Context, addr string, dir string, f func()) (p *an
 
 	// send initial json
 	var b []byte
-	if b, err = json.Marshal(defs.InitialJson); err != nil {
+	if b, err = json.Marshal(conf); err != nil {
 		return
 	}
 	if _, err = p.conn.Write(b); err != nil {
@@ -182,7 +178,9 @@ func (p *animation) procImage(name string) (err error) {
 func (p *animation) Write(pcm []byte) (i int, err error) {
 	// create file
 	name := fmt.Sprintf("%s/%d.pcm", p.dir, atomic.AddInt64(&p.index, 1))
-	err = os.WriteFile(name, pcm, 0666)
+	if err = os.WriteFile(name, pcm, 0666); err != nil {
+		return
+	}
 	i = len(pcm)
 
 	// send name to socket

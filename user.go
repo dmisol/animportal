@@ -5,7 +5,6 @@ import (
 	"log"
 	"path"
 	"sync"
-	"time"
 
 	"github.com/dmisol/animportal/anim"
 	"github.com/dmisol/animportal/defs"
@@ -14,48 +13,44 @@ import (
 	webrtc "github.com/pion/webrtc/v3"
 )
 
-const (
-	rtcTimeout = 2 * time.Hour
-)
-
-func (ap *AnimationPortal) newUser(ctx context.Context, hall string, dummy string, name string) (p *user, err error) {
-	p = &user{
+func (ap *AnimationPortal) newUser(ctx context.Context, hall string, dummy string, name string, conf defs.PortalConf) (u *user, err error) {
+	u = &user{
 		Relays: make(map[string]*relay.Relay),
 		Owner:  name,
 		room:   dummy,
 		conf:   ap.PortalConf,
 	}
-	p.Context, p.CancelFunc = context.WithCancel(ctx)
+	u.Context, u.CancelFunc = context.WithCancel(ctx)
 
 	// subscribe to hall, set cb to colect participants
-	if p.Hall, err = lksdk.ConnectToRoom(ap.PortalConf.Ws, lksdk.ConnectInfo{
+	if u.Hall, err = lksdk.ConnectToRoom(ap.PortalConf.Ws, lksdk.ConnectInfo{
 		APIKey:              ap.PortalConf.Key,
 		APISecret:           ap.PortalConf.Secret,
 		RoomName:            hall,
 		ParticipantIdentity: name,
 	}, &lksdk.RoomCallback{
 		ParticipantCallback: lksdk.ParticipantCallback{
-			OnTrackSubscribed: p.hallCb,
+			OnTrackSubscribed: u.hallCb,
 		},
 	}, func(cp *lksdk.ConnectParams) { cp.AutoSubscribe = false }); err != nil {
 		panic(err)
 	}
 
-	if p.Engine, err = anim.NewEngine(p.Context, ap.PortalConf.AnimAddr, path.Join(ap.PortalConf.Ram, dummy), p.Hall); err != nil {
+	if u.Engine, err = anim.NewEngine(u.Context, ap.PortalConf.AnimAddr, path.Join(ap.PortalConf.Ram, dummy), u.Hall, conf); err != nil {
 		return
 	}
 
 	// subscribe to dummy, forward audio for (processing, hall)
 	// also publish video to dummy as "flexatar", for monitoring
-	if p.Dummy, err = lksdk.ConnectToRoom(ap.PortalConf.Ws, lksdk.ConnectInfo{
+	if u.Dummy, err = lksdk.ConnectToRoom(ap.PortalConf.Ws, lksdk.ConnectInfo{
 		APIKey:              ap.PortalConf.Key,
 		APISecret:           ap.PortalConf.Secret,
 		RoomName:            dummy,
 		ParticipantIdentity: "anim",
 	}, &lksdk.RoomCallback{
 		ParticipantCallback: lksdk.ParticipantCallback{
-			OnTrackSubscribed:  p.dummyCb,
-			OnTrackUnpublished: p.stop,
+			OnTrackSubscribed:  u.dummyCb,
+			OnTrackUnpublished: u.stop,
 		},
 	}, func(cp *lksdk.ConnectParams) { cp.AutoSubscribe = false }); err != nil {
 		panic(err)
@@ -64,26 +59,26 @@ func (ap *AnimationPortal) newUser(ctx context.Context, hall string, dummy strin
 	return
 }
 
-func (p *user) stop(publication *lksdk.RemoteTrackPublication, rp *lksdk.RemoteParticipant) {
-	if rp.Identity() == p.Owner {
-		p.Println("owner left, closing")
-		p.CancelFunc()
+func (u *user) stop(publication *lksdk.RemoteTrackPublication, rp *lksdk.RemoteParticipant) {
+	if rp.Identity() == u.Owner {
+		u.Println("owner left, closing")
+		u.CancelFunc()
 	}
 }
 
-func (p *user) Close() {
+func (u *user) Close() {
 
-	if p.Dummy != nil {
-		p.Dummy.Disconnect()
+	if u.Dummy != nil {
+		u.Dummy.Disconnect()
 	}
-	if p.Hall != nil {
-		p.Hall.Disconnect()
+	if u.Hall != nil {
+		u.Hall.Disconnect()
 	}
 
-	p.CancelFunc()
+	u.CancelFunc()
 }
 
-func (p *user) Println(i ...interface{}) {
+func (u *user) Println(i ...interface{}) {
 	log.Println("portal", i)
 }
 
@@ -104,51 +99,45 @@ type user struct {
 }
 
 // to get new publoshers in Hall to fill []*Relays
-func (p *user) hallCb(remote *webrtc.TrackRemote, publication *lksdk.RemoteTrackPublication, rp *lksdk.RemoteParticipant) {
+func (u *user) hallCb(remote *webrtc.TrackRemote, publication *lksdk.RemoteTrackPublication, rp *lksdk.RemoteParticipant) {
 	id := rp.Identity()
 
-	p.mu.Lock()
-	defer p.mu.Unlock()
+	u.mu.Lock()
+	defer u.mu.Unlock()
 
-	r, ok := p.Relays[id]
+	r, ok := u.Relays[id]
 	if !ok {
-		p.Println("relaying (hall->dummy", id)
+		u.Println("relaying (hall->dummy", id)
 
-		room, err := lksdk.ConnectToRoom(p.conf.Ws, lksdk.ConnectInfo{
-			APIKey:              p.conf.Key,
-			APISecret:           p.conf.Secret,
-			RoomName:            p.room,
+		room, err := lksdk.ConnectToRoom(u.conf.Ws, lksdk.ConnectInfo{
+			APIKey:              u.conf.Key,
+			APISecret:           u.conf.Secret,
+			RoomName:            u.room,
 			ParticipantIdentity: id,
 		}, &lksdk.RoomCallback{
 			ParticipantCallback: lksdk.ParticipantCallback{},
 		})
 		if err != nil {
-			p.Println("romm error", id, err)
+			u.Println("romm error", id, err)
 			return
 		}
 
-		r, _ = relay.NewRelay(p.Context, room)
-		p.Relays[id] = r
+		r, _ = relay.NewRelay(u.Context, room)
+		u.Relays[id] = r
 	}
-	if id == p.Owner && remote.Kind() == webrtc.RTPCodecTypeAudio {
-		p.Println("do not publish audio back, ft only - skipping")
+	if id == u.Owner && remote.Kind() == webrtc.RTPCodecTypeAudio {
+		u.Println("do not publish audio back, ft only - skipping")
 		return
 	}
 	r.AddTrack(remote)
 }
 
-func (p *user) dummyCb(remote *webrtc.TrackRemote, publication *lksdk.RemoteTrackPublication, rp *lksdk.RemoteParticipant) {
-	if p.Owner != rp.Identity() {
+func (u *user) dummyCb(remote *webrtc.TrackRemote, publication *lksdk.RemoteTrackPublication, rp *lksdk.RemoteParticipant) {
+	if u.Owner != rp.Identity() {
 		return
 	}
 	if remote.Kind() != webrtc.RTPCodecTypeAudio {
 		return
 	}
-	go p.Engine.OnAuioTrack(remote)
-}
-
-type PattGen interface {
-}
-
-type ImgGen interface {
+	u.Engine.OnAuioTrack(remote)
 }

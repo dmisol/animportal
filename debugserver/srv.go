@@ -45,7 +45,7 @@ func handler(conn net.Conn) {
 		log.Println("reading:", err.Error())
 		return
 	}
-	var init *defs.Init
+	var init *defs.InitialJson
 
 	if err := json.Unmarshal(buf, init); err != nil {
 		log.Println("initial json", err)

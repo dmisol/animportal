@@ -3,7 +3,11 @@ package animportal
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
+	"os"
+	"path"
+	"sync/atomic"
 	"time"
 
 	"github.com/dmisol/animportal/defs"
@@ -15,37 +19,51 @@ import (
 
 const (
 	lifetime = 2 * time.Hour
+	initJson = "init.json"
 )
 
 type AnimationPortal struct {
 	*defs.PortalConf
+	index int64
 }
 
-func (ap *AnimationPortal) Init(name string) (err error) {
+func NewPortal(name string) (ap *AnimationPortal, err error) {
+
 	var cont []byte
 	cont, err = ioutil.ReadFile(name)
 	if err != nil {
 		return
 	}
 
-	ap.PortalConf = &defs.PortalConf{}
+	ap = &AnimationPortal{
+		PortalConf: &defs.PortalConf{},
+	}
 	if err = yaml.Unmarshal(cont, ap.PortalConf); err != nil {
 		return
 	}
 
-	cont, err = ioutil.ReadFile("./config.json")
-	if err != nil {
-		return err
+	jn := initJson
+	if len(ap.PortalConf.DefaultInitJson) > 0 {
+		jn = ap.PortalConf.DefaultInitJson
 	}
-	err = json.Unmarshal(cont, &defs.InitialJson)
+	if cont, err = ioutil.ReadFile(jn); err != nil {
+		return
+	}
+	if err = json.Unmarshal(cont, &ap.PortalConf.InitialJson); err != nil {
+		return
+	}
+	ap.PortalConf.InitialJson.Ftar = ap.PortalConf.DefaultFtar
 	return
 }
 
-// /animate?name=xxx - hall's name is ft
-// /animate?name=xxx&hall=yyy
+// /animate?name=xxx
+// /animate?name=xxx&hall=yyy&ftar=zzz
+// if body exists, it contains alternative InitialJson
 func (ap *AnimationPortal) Handler(r *fasthttp.RequestCtx) {
 	name := string(r.FormValue("name"))
 	hall := string(r.FormValue("hall"))
+	ftar := string(r.FormValue("ftar"))
+
 	dummy := uuid.NewString()
 
 	if name == "" {
@@ -56,6 +74,27 @@ func (ap *AnimationPortal) Handler(r *fasthttp.RequestCtx) {
 		hall = "ft"
 	}
 
+	conf := *ap.PortalConf
+
+	body := r.Request.Body()
+	if len(body) > 0 {
+		if err := json.Unmarshal(body, &conf.InitialJson); err != nil {
+			r.Error("invalid body - initial json", fasthttp.StatusBadRequest)
+			return
+		}
+	}
+
+	if len(ftar) != 0 {
+		conf.InitialJson.Ftar = path.Join(path.Dir(conf.DefaultFtar), ftar)
+	}
+
+	x := atomic.AddInt64(&ap.index, 1)
+	conf.InitialJson.Dir = fmt.Sprintf("%s/%d", conf.Ram, x)
+	if err := os.MkdirAll(conf.InitialJson.Dir, 0777); err != nil {
+		r.Error("can't create ramfs folder", fasthttp.StatusInternalServerError)
+		return
+	}
+
 	t, err := ap.signToken(lifetime, name, "", dummy)
 	if err != nil {
 		r.Error("can't make token", fasthttp.StatusInternalServerError)
@@ -64,7 +103,8 @@ func (ap *AnimationPortal) Handler(r *fasthttp.RequestCtx) {
 
 	ctx, _ := context.WithTimeout(context.Background(), lifetime)
 	go func() {
-		p, err := ap.newUser(ctx, hall, dummy, name)
+
+		p, err := ap.newUser(ctx, hall, dummy, name, conf)
 		if err != nil {
 			r.Error("can't start portal", fasthttp.StatusInternalServerError)
 			return
