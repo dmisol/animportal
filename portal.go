@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"path"
 	"sync/atomic"
@@ -39,6 +40,7 @@ func NewPortal(name string) (ap *AnimationPortal, err error) {
 		PortalConf: &defs.PortalConf{},
 	}
 	if err = yaml.Unmarshal(cont, ap.PortalConf); err != nil {
+		log.Println("yaml err", name, err)
 		return
 	}
 
@@ -47,9 +49,11 @@ func NewPortal(name string) (ap *AnimationPortal, err error) {
 		jn = ap.PortalConf.DefaultInitJson
 	}
 	if cont, err = ioutil.ReadFile(jn); err != nil {
+		log.Println("file read err", jn, err)
 		return
 	}
 	if err = json.Unmarshal(cont, &ap.PortalConf.InitialJson); err != nil {
+		log.Println("json err", jn, err)
 		return
 	}
 	ap.PortalConf.InitialJson.Ftar = ap.PortalConf.DefaultFtar

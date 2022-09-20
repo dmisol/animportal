@@ -30,7 +30,8 @@ func Play(ctx context.Context, roomName string, botname string, filename string,
 		log.Println("audio pub", err)
 		return
 	}
-
+	<-ctx.Done()
+	room.Disconnect()
 }
 
 func publishFile(room *lksdk.Room, filename string, dur time.Duration) error {

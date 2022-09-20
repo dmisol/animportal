@@ -24,6 +24,7 @@ func main() {
 	}
 	// Close the listener when the application closes.
 	defer l.Close()
+	log.Println("waiting for connections")
 	for {
 		// Listen for an incoming connection.
 		conn, err := l.Accept()
@@ -31,6 +32,7 @@ func main() {
 			log.Println("accepting: ", err.Error())
 			os.Exit(1)
 		}
+		log.Println("accepted", conn.RemoteAddr())
 		// Handle connections in a new goroutine.
 		go handler(conn)
 	}
@@ -47,10 +49,14 @@ func handler(conn net.Conn) {
 	}
 	var init *defs.InitialJson
 
+	log.Println("initial json read")
+
 	if err := json.Unmarshal(buf, init); err != nil {
 		log.Println("initial json", err)
 		return
 	}
+
+	log.Println("unmarshalled")
 
 	var started chan bool
 	go func() {
@@ -69,6 +75,7 @@ func handler(conn net.Conn) {
 		t := time.NewTicker(time.Nanosecond * time.Duration(dt))
 		defer t.Stop()
 
+		log.Println("image created")
 		index := 0
 		for {
 			<-t.C
@@ -79,6 +86,7 @@ func handler(conn net.Conn) {
 				log.Println("senging png", err)
 				return
 			}
+			log.Println("file sent", name)
 		}
 	}()
 
